@@ -13,6 +13,12 @@ import keyboard as Kb
 import mouse as Ms
 from ahk import AHK
 import subprocess
+
+import win32api
+import win32con
+import time
+from win32con import *
+
 ahk = AHK()
 SIGNAL_FILE = "click_signal.txt"
 
@@ -331,10 +337,10 @@ class MacroApp:
         if is_continuous and self.is_active:
             print("Line 285-- i am in loop")
             while self.is_active:
-                self._execute_actions(actions)
+                self._execute_actions_game(actions)
         else:
             print("Line 289-- i am here")
-            self._execute_actions(actions)
+            self._execute_actions_game(actions)
 
 
     def _execute_actions(self, actions):
@@ -372,9 +378,61 @@ class MacroApp:
             Kb.hook(self.handle_key_press)
             self.inner_Mouse_listener_keeper()
 
+    def _execute_actions_game(self, actions):
+        if not self.selectedTriger_macro.get('ignore_trigger', 'no') == 'yes':
+            Kb.unhook_all()
+            Ms.unhook_all()
+        print("Line 296--  now i am here")
+
+        if self.selectedTriger_macro['trigger_type'] == 'text':
+            print("I am text macro ) ")
+            text_content = self.selectedTriger_macro.get('text_content', '')
+            Kb.write(text_content)
+        else:
+            for action in actions:
+                action = action.strip()
+                if action.startswith("delay_before"):
+                    delay_time = int(action.split('_')[1]) / 1000  # Convert to seconds
+                    time.sleep(delay_time)
+                elif action.startswith("k:"):
+                    key = action.split(':')[1].strip("'")  # Get the key from the action
+                    vk_code = self._get_virtual_key_code(key)
+                    print("Line 337-- " + key)
+                    win32api.keybd_event(vk_code, 0, 0, 0)  # Press key
+                    time.sleep(0.1)
+                    win32api.keybd_event(vk_code, 0, win32con.KEYEVENTF_KEYUP, 0)  # Release key  # Release the key
+
+                elif action.startswith("click:"):
+                    click_type = action.split(':')[1].strip()  # Get click type
+                    if click_type == "left":
+                        self.mouse.click(Button.left)  # Simulate left click
+                    elif click_type == "right":
+                        self.mouse.click(Button.right)  # Simulate right click
+                elif action.startswith("delay_after"):
+                    delay_time = int(action.split('_')[1]) / 1000  # Convert to seconds
+                    time.sleep(delay_time)
+        if not self.selectedTriger_macro.get('ignore_trigger', 'no') == 'yes':
+            time.sleep(0.1)
+            Kb.hook(self.handle_key_press)
+            self.inner_Mouse_listener_keeper()
 
 
 
+
+    def _get_virtual_key_code(self, key):
+        # Virtual key code mapping
+        key_map = {
+            'a': 0x41, 'b': 0x42, 'c': 0x43, 'd': 0x44, 'e': 0x45,
+            'f': 0x46, 'g': 0x47, 'h': 0x48, 'i': 0x49, 'j': 0x4A,
+            'k': 0x4B, 'l': 0x4C, 'm': 0x4D, 'n': 0x4E, 'o': 0x4F,
+            'p': 0x50, 'q': 0x51, 'r': 0x52, 's': 0x53, 't': 0x54,
+            'u': 0x55, 'v': 0x56, 'w': 0x57, 'x': 0x58, 'y': 0x59,
+            'z': 0x5A, '1': 0x31, '2': 0x32, '3': 0x33, '4': 0x34,
+            '5': 0x35, '6': 0x36, '7': 0x37, '8': 0x38, '9': 0x39,
+            '0': 0x30, 'enter': 0x0D, 'space': 0x20, 'tab': 0x09,
+            'esc': 0x1B, 'backspace': 0x08
+        }
+        return key_map.get(key.lower(), 0)
 
 
 
