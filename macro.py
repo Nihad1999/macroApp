@@ -15,7 +15,7 @@ import keyboard as Kb
 import mouse as Ms
 from ahk import AHK
 import subprocess
-
+from pynput import mouse as MsCpp
 import win32api
 import win32con
 import time
@@ -23,6 +23,13 @@ from win32con import *
 
 import sys
 import ctypes
+
+import mmap
+import struct
+import subprocess
+import psutil
+
+from PyCppDemo import stop_exe
 
 ahk = AHK()
 SIGNAL_FILE = "click_signal.txt"
@@ -115,6 +122,10 @@ class MacroApp:
         self.dragging = False
         self.offset_x = 0
         self.offset_y = 0
+
+        #Cpp code in py--
+        self.process = None
+        self.process_CppEnter = False
 
     def load_macros(self):
         # Load macros from file or create an empty list if none exists
@@ -210,7 +221,7 @@ class MacroApp:
                     self.Mouse_Click_Keeper = 'Button.right'
 
                     def Mouse_Listener_Keeper():
-                        Ms.on_right_click(self.handle_cli33ck_press)
+                        Ms.on_right_click(self.handle_click_press)
 
                     self.inner_Mouse_listener_keeper = Mouse_Listener_Keeper
                     self.inner_Mouse_listener_keeper()
@@ -218,8 +229,13 @@ class MacroApp:
                     'ignore_trigger', 'no') == 'yes':
                 if self.selected_trigger_key == 'Button.left':
                     self.Mouse_Click_Keeper = 'Button.left'
-                    print("Line 155")
-                    self.execute_macro()
+                    print("Line 155 i will ignore left click")
+
+
+                    Ms.on_click(self.execute_macro)
+
+
+
 
                 else:
                     print("I am right click")
@@ -238,6 +254,7 @@ class MacroApp:
 
         else:
             self.is_active = False
+            self.stop_exe()
             self.cleanup()
             self.status_label.config(text="Status: Deactivated", fg="red")
             self.activate_button.config(text="Activate")  # Change button text
@@ -264,6 +281,31 @@ class MacroApp:
                 self.icon_frame.configure(bg="red")
                 for widget in self.icon_frame.winfo_children():
                     widget.configure(bg="red")
+
+    def on_click_handler(self):
+        print(f"Python detected click")
+        return True
+
+    # def stop_exe(self):
+    #     for proc in psutil.process_iter():
+    #         try:
+    #             if proc.name().lower() == 'clickend.exe':
+    #                 proc.kill()
+    #                 print("Successfully stopped ClickEnd.exe")
+    #         except (psutil.NoSuchProcess, psutil.AccessDenied):
+    #             pass
+    #
+    # def start_clickend(self):
+    #     os.chdir(r"G:\Niko\MY app\C++\ClickEnd\bin\Release")
+    #     self.process = subprocess.Popen(['ClickEnd.exe'])
+    #     time.sleep(1)  # Wait for initialization
+    #
+    # def set_counter(self, value):
+    #     shm = mmap.mmap(-1, 4, "Local\\ClickEndCounter")
+    #     shm.seek(0)
+    #     shm.write(struct.pack('i', value))
+    #     shm.close()
+
 
     def kill_ahk_processes(self):
         try:
@@ -409,6 +451,7 @@ class MacroApp:
             if game_mode and self.selectedTriger_macro.get(
                     'ignore_trigger', 'no') == 'yes' and not self.selected_trigger_type == 'key' and not self.selected_trigger_type == 'text':
                 self._execute_actions_game_ahk(actions)
+                print("Line 442-- i called AHK Cpp actions")
             elif game_mode:
                 self._execute_actions_game(actions)
             else:
@@ -558,34 +601,104 @@ class MacroApp:
         script_parts.append("return")
         return "\n".join(script_parts)
 
+    # def _execute_actions_game_ahk(self, actions):
+    #     if self.selectedTriger_macro['trigger_type'] == 'text':
+    #         text_content = self.selectedTriger_macro.get('text_content', '')
+    #         Kb.write(text_content)
+    #     else:
+    #         if self.selected_trigger_key == 'Button.left' and not self.process_CppEnter:
+    #
+    #             Ms.unhook_all()
+    #             self.process_CppEnter = True
+    #             print("I am in AHK")
+    #             # if not self.process:
+    #             #     self.start_clickend()
+    #             #     # Set counter value
+    #             # self.set_counter(1)
+    #             # time.sleep(0.1)
+    #             for action in actions:
+    #                 action = action.strip()
+    #                 print(f"Current action: {action}")  # This will show us each action
+    #                 if action.startswith("d:"):
+    #                     delay_time = int(action.split(':')[-1]) / 1000  # Convert to seconds
+    #                     print("Delay time--",  delay_time)
+    #                     time.sleep(delay_time)
+    #                 elif action.startswith("k:"):
+    #                     key = action.split(':')[1].strip("'")  # Get the key from the action
+    #                     vk_code = self._get_virtual_key_code(key)
+    #                     print("Line 337-- " + key)
+    #                     win32api.keybd_event(vk_code, 0, 0, 0)  # Press key
+    #                     time.sleep(0.1)
+    #                     win32api.keybd_event(vk_code, 0, win32con.KEYEVENTF_KEYUP, 0)  # Release key  # Release the key
+    #
+    #                 elif action.startswith("click:"):
+    #                     click_type = action.split(':')[1].strip()  # Get click type
+    #                     if click_type == "left":
+    #
+    #                         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+    #                         time.sleep(0.05)  # Add small delay
+    #                         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+    #
+    #                     elif click_type == "right":
+    #                         win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
+    #                         time.sleep(0.05)  # Add small delay
+    #                         win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
+    #                 elif action.startswith("d:"):
+    #                     delay_time = int(action.split(':')[-1]) / 1000  # Convert to seconds
+    #                     print("Delay time--",  delay_time)
+    #                     time.sleep(delay_time)
+    #             time.sleep(5)
+    #             Ms.on_click(self.execute_macro)
+    #             self.process_CppEnter = False
+    #
+    #         else:
+    #             print("Setting counter to 5...")
+
     def _execute_actions_game_ahk(self, actions):
         if self.selectedTriger_macro['trigger_type'] == 'text':
             text_content = self.selectedTriger_macro.get('text_content', '')
             Kb.write(text_content)
         else:
-            if self.selected_trigger_key == 'Button.left':
-                self.ahk_thread = threading.Thread(target=lambda: ahk.run_script(self.generate_ahk_script_left(actions)),
-                                                   daemon=True)
-                self.ahk_thread.start()
+            if self.selected_trigger_key == 'Button.left' and not self.process_CppEnter:
+                # Temporarily disable mouse listener
+                Ms.unhook_all()
+                self.process_CppEnter = True
+                print("I am in AHK")
 
+                try:
+                    for action in actions:
+                        action = action.strip()
+                        print(f"Current action: {action}")
 
+                        if action.startswith("d:"):
+                            delay_time = int(action.split(':')[-1]) / 1000
+                            print("Delay time--", delay_time)
+                            time.sleep(delay_time)
+                        elif action.startswith("k:"):
+                            key = action.split(':')[1].strip("'")
+                            vk_code = self._get_virtual_key_code(key)
+                            print("Line 337-- " + key)
+                            win32api.keybd_event(vk_code, 0, 0, 0)
+                            time.sleep(0.1)
+                            win32api.keybd_event(vk_code, 0, win32con.KEYEVENTF_KEYUP, 0)
+                        elif action.startswith("click:"):
+                            click_type = action.split(':')[1].strip()
+                            if click_type == "left":
+                                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+                                time.sleep(0.05)
+                                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+                            elif click_type == "right":
+                                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
+                                time.sleep(0.05)
+                                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
+                finally:
+                    # Re-enable mouse listener and reset flag
+                    self.process_CppEnter = False
+                    # Add a small delay before re-hooking to prevent immediate retriggering
+                    time.sleep(0.2)
+                    Ms.on_click(self.execute_macro)
             else:
-
-                def run_ahk():
-
-                    if self.selected_trigger_key == 'Button.left':
-
-                        self.ahk_process = ahk.run_script(self.generate_ahk_script_left(actions))
-
-                    else:
-
-                        self.ahk_process = ahk.run_script(self.generate_ahk_script_right(actions))
-
-                self.ahk_thread = threading.Thread(target=run_ahk, daemon=True)
-
-                self.ahk_thread.start()
-
-
+                print("Setting counter to 5...")
 
     def _get_virtual_key_code(self, key):
         # Virtual key code mapping
@@ -819,4 +932,3 @@ if __name__ == "__main__":
     app = MacroApp(root)
 
     root.mainloop()
-
